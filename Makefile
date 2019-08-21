@@ -15,4 +15,4 @@ connect-db:
 			sslcert=client-cert.pem sslkey=client-key.pem \
 			hostaddr=$(host) \
 			port=5432 \
-			user=postgres dbname=postgres"
+			user=root dbname=test"
