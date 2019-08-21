@@ -9,5 +9,5 @@ resources:
       dbUser:
         user: root
         password: test123_
-      failover: true
-      readReplicas: 1
+      failover: false
+      readReplicas: 0

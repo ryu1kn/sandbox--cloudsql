@@ -21,21 +21,21 @@ properties:
   cloudsql:
     type: object
     default:
-      properties: 
+      properties:
     properties:
       databaseVersion:
         type: string
-        description: MYSQL_5_7 or MYSQL_5_6
-        default: MYSQL_5_7
+        description: POSTGRES_9_6 or POSTGRES_11
+        default: POSTGRES_9_6
       dataDiskSizeGb:
         type: integer
         minimum: 10
         maximum: 10000
-        default: 200
+        default: 10
       dataDiskType:
         type: string
         decription: PD_SSD or PD_HDD
-        default: PD_SSD
+        default: PD_HDD
       backupStartTime:
         type: string
         description: HH:MM in 24 hour format
@@ -43,37 +43,37 @@ properties:
       tier:
         type: string
         description: https://cloud.google.com/sql/pricing#2nd-gen-pricing
-        default: db-n1-highmem-4
+        default: db-custom-1-3840
       region:
         type: string
-        description: i.e. us-central1
-        default: us-central1
+        description: i.e. australia-southeast1
+        default: australia-southeast1
       zone:
         type: string
-        description: i.e. us-central1-a
-        default: us-central1-a
+        description: i.e. australia-southeast1-a
+        default: australia-southeast1-a
       authorizedNetworks:
         type: array
         description: An array of allowed CIDR blocks
         items:
           type: string
 
-  databaseFlags: 
+  databaseFlags:
     type: array
     description: An array of https://cloud.google.com/sql/docs/mysql/flags
     items:
       type: object
       required:
         - name
-        - value 
+        - value
       properties:
-        name: 
-          type: string 
+        name:
+          type: string
         value:
-          type: 
+          type:
             - integer
             - string
-  
+
   dbUser:
     type: object
     required:
@@ -87,16 +87,15 @@ properties:
         default: '%'
       password:
         type: string
-  
-  database: 
+
+  database:
     type: object
     required:
       - name
     properties:
-      name: 
+      name:
         type: string
       charset:
         type: string
         description: https://dev.mysql.com/doc/refman/5.7/en/charset.html
         default: utf8
-
