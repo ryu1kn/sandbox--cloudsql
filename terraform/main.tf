@@ -14,6 +14,10 @@ provider "google" {
   zone = "${var.region}-a"
 }
 
+locals {
+  backup_job_name = "db_export"
+}
+
 resource "random_id" "db_name_suffix" {
   byte_length = 4
 }
@@ -32,33 +36,6 @@ resource "google_sql_database" "database" {
   instance = "${google_sql_database_instance.master.name}"
 }
 
-resource "google_cloud_scheduler_job" "db_export" {
-  name = "export-db"
-  description = "Export DB to Cloud Storage"
-  schedule = "0 0 * * *"
-  time_zone = "Australia/Melbourne"
-
-  http_target {
-    http_method = "POST"
-    uri = "https://www.googleapis.com/sql/v1beta4/projects/${var.project_id}/instances/${google_sql_database_instance.master.name}/export"
-
-    # XXX: Access token here is useless. It's only effective for an hour after the schedule creation
-    headers = "${map(
-      "Content-Type", "application/json",
-      "Authorization", "Bearer ${data.google_service_account_access_token.db_backup.access_token}"
-    )}"
-    body = <<EOF
-{
-  "exportContext": {
-    "fileType": "SQL",
-    "uri": "gs://${google_storage_bucket.db_backup_store.name}/${google_sql_database_instance.master.name}/${google_sql_database.database.name}",
-    "databases": ["${google_sql_database.database.name}"]
-  }
-}
-EOF
-  }
-}
-
 resource "google_storage_bucket" "db_backup_store" {
   name = "${var.project_id}-db-backup-store"
   location = "${var.region}"
@@ -69,13 +46,55 @@ resource "google_storage_bucket" "db_backup_store" {
   }
 }
 
+resource "google_storage_bucket_iam_member" "member" {
+  bucket = "${google_storage_bucket.db_backup_store.name}"
+  role = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_sql_database_instance.master.service_account_email_address}"
+}
+
 resource "google_service_account" "db_backup" {
   account_id = "db-backup-sa"
   display_name = "DB backup account"
 }
 
-data "google_service_account_access_token" "db_backup" {
-  target_service_account = "${google_service_account.db_backup.email}"
-  scopes = ["cloud-platform"]
-  lifetime = "3600s"
+resource "google_project_iam_binding" "db_exporter" {
+  role = "roles/cloudsql.viewer"
+  members = [
+    "serviceAccount:${google_service_account.db_backup.email}",
+  ]
+}
+
+resource "null_resource" "export_db_scheduler" {
+  triggers {
+    foo = "0"
+  }
+
+  provisioner "local-exec" {
+    command = <<EOF
+        gcloud alpha scheduler jobs create http ${local.backup_job_name} \
+            --description='Export CloudSQL DB to Storage Bucket' \
+            --schedule='0 0 * * *' \
+            --uri='https://www.googleapis.com/sql/v1beta4/projects/${var.project_id}/instances/${google_sql_database_instance.master.name}/export' \
+            --http-method="post" \
+            --headers=Content-Type=application/json \
+            --time-zone=Australia/Melbourne \
+            --oauth-service-account-email='${google_service_account.db_backup.email}' \
+            --oauth-token-scope='https://www.googleapis.com/auth/cloud-platform' \
+            --message-body="$$(cat << PAYLOAD
+{
+  "exportContext": {
+    "fileType": "SQL",
+    "uri": "gs://${google_storage_bucket.db_backup_store.name}/${google_sql_database_instance.master.name}/${google_sql_database.database.name}",
+    "databases": ["${google_sql_database.database.name}"]
+  }
+}
+PAYLOAD
+)"
+    EOF
+  }
+
+  provisioner "local-exec" {
+    when = "destroy"
+    command = "gcloud alpha scheduler jobs delete ${local.backup_job_name} --quiet"
+  }
 }
