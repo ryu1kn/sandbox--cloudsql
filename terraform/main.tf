@@ -1,13 +1,10 @@
 
 terraform {
   required_version = "~> 0.11"
-  required_providers {
-    google = "2.13.0"
-    random_id = "2.2.0"
-  }
 }
 
 provider "google" {
+  version = "~> 2.12.0"
   access_token = "${var.access_token}"
   project = "${var.project_id}"
   region = "${var.region}"
