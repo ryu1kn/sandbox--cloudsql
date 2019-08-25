@@ -61,9 +61,11 @@ resource "google_project_iam_binding" "db_exporter" {
   ]
 }
 
+# Until this ticket comes landed, need custom resource management
+# https://github.com/terraform-providers/terraform-provider-google/issues/4089
 resource "null_resource" "export_db_scheduler" {
-  triggers {
-    manual_trigger_increment = "1"
+  triggers = {
+    manual_trigger_increment = "2"
   }
 
   provisioner "local-exec" {
