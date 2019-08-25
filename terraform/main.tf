@@ -63,7 +63,7 @@ resource "google_project_iam_binding" "db_exporter" {
 
 resource "null_resource" "export_db_scheduler" {
   triggers {
-    foo = "0"
+    manual_trigger_increment = "1"
   }
 
   provisioner "local-exec" {
@@ -76,7 +76,6 @@ resource "null_resource" "export_db_scheduler" {
             --headers=Content-Type=application/json \
             --time-zone=Australia/Melbourne \
             --oauth-service-account-email='${google_service_account.db_backup.email}' \
-            --oauth-token-scope='https://www.googleapis.com/auth/cloud-platform' \
             --message-body="$$(cat << PAYLOAD
 {
   "exportContext": {
