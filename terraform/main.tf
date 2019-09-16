@@ -11,8 +11,9 @@ provider "google" {
   zone = "${var.region}-a"
 }
 
-locals {
-  backup_job_name = "db_export"
+resource "google_project_service" "sqladmin" {
+  service = "sqladmin.googleapis.com"
+  disable_dependent_services = true
 }
 
 resource "random_id" "db_name_suffix" {
@@ -38,14 +39,11 @@ resource "google_storage_bucket" "db_backup_store" {
   location = "${var.region}"
   storage_class = "REGIONAL"
   force_destroy = "true"
-  versioning = {
-    enabled = "true"
-  }
 }
 
 resource "google_storage_bucket_iam_member" "member" {
   bucket = "${google_storage_bucket.db_backup_store.name}"
-  role = "roles/storage.objectAdmin"
+  role = "roles/storage.legacyBucketWriter"
   member = "serviceAccount:${google_sql_database_instance.master.service_account_email_address}"
 }
 
@@ -59,40 +57,4 @@ resource "google_project_iam_binding" "db_exporter" {
   members = [
     "serviceAccount:${google_service_account.db_backup.email}",
   ]
-}
-
-# Until this ticket comes landed, need custom resource management
-# https://github.com/terraform-providers/terraform-provider-google/issues/4089
-resource "null_resource" "export_db_scheduler" {
-  triggers = {
-    manual_trigger_increment = "2"
-  }
-
-  provisioner "local-exec" {
-    command = <<EOF
-        gcloud alpha scheduler jobs create http ${local.backup_job_name} \
-            --description='Export CloudSQL DB to Storage Bucket' \
-            --schedule='0 0 * * *' \
-            --uri='https://www.googleapis.com/sql/v1beta4/projects/${var.project_id}/instances/${google_sql_database_instance.master.name}/export' \
-            --http-method="post" \
-            --headers=Content-Type=application/json \
-            --time-zone=Australia/Melbourne \
-            --oauth-service-account-email='${google_service_account.db_backup.email}' \
-            --message-body="$$(cat << PAYLOAD
-{
-  "exportContext": {
-    "fileType": "SQL",
-    "uri": "gs://${google_storage_bucket.db_backup_store.name}/${google_sql_database_instance.master.name}/${google_sql_database.database.name}",
-    "databases": ["${google_sql_database.database.name}"]
-  }
-}
-PAYLOAD
-)"
-    EOF
-  }
-
-  provisioner "local-exec" {
-    when = "destroy"
-    command = "gcloud alpha scheduler jobs delete ${local.backup_job_name} --quiet"
-  }
 }
