@@ -52,6 +52,11 @@ resource "google_service_account" "db_backup" {
   display_name = "DB backup account"
 }
 
+resource "google_project_iam_member" "impersonater" {
+  role = "roles/iam.serviceAccountTokenCreator"
+  member = "user:${var.user_email}"
+}
+
 resource "google_project_iam_binding" "db_exporter" {
   role = "roles/cloudsql.viewer"
   members = [
